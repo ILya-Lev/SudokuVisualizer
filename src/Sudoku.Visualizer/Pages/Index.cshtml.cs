@@ -6,6 +6,8 @@ using SudokuVisualizer.Services;
 
 namespace SudokuVisualizer.Pages;
 
+// Simplifies AJAX POST requests for this standalone tool
+[IgnoreAntiforgeryToken]
 public class IndexModel : PageModel
 {
     private const int Size = Field.Size;
@@ -42,6 +44,38 @@ public class IndexModel : PageModel
         Steps = steps.Select(c => new StepDto(c.R, c.C, c.Digit)).ToList();
 
         return Page();
+    }
+
+    // This handler receives the CURRENT state of the board from JavaScript
+    public IActionResult OnPostNextStep([FromBody] int[][]? currentBoard)
+    {
+        if (currentBoard is not { Length: Size })
+            return new JsonResult(null);
+
+        List<Cell[]> cells = [];
+        for (int r = 0; r < Size; r++)
+        {
+            var row = new Cell[Size];
+            for (int c = 0; c < Size; c++)
+            {
+                int digit = currentBoard[r][c];
+                row[c] = digit is > 0 and <= Size
+                    ? new Cell(r, c, digit)
+                    : new Cell(r, c);
+            }
+            cells.Add(row);
+        }
+
+        var field = new Field(cells);
+        var steps = Solver.Solve(field).ToList();
+
+        if (steps.Any())
+        {
+            var nextStep = steps.First();
+            return new JsonResult(new { r = nextStep.R, c = nextStep.C, digit = nextStep.Digit });
+        }
+
+        return new JsonResult(null); // Solved or un-solvable state
     }
 
     private static async Task<(Field?, string?)> GetField(IFormFile puzzleFile)

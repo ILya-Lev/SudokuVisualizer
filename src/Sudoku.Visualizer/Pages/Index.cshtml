@@ -1,11 +1,12 @@
 ﻿@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Sudoku Solver";
+    ViewData["Title"] = "Interactive Sudoku";
     var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
 }
 
 <style>
+    /* Grid layout */
     #sudoku-grid {
         display: grid;
         grid-template-columns: repeat(9, 40px);
@@ -14,6 +15,8 @@
         border-top: 3px solid black;
         border-left: 3px solid black;
         background-color: #fff;
+        user-select: none;
+        position: relative;
     }
 
     .sudoku-cell {
@@ -25,7 +28,12 @@
         border-right: 1px solid #ccc;
         border-bottom: 1px solid #ccc;
         box-sizing: border-box;
+        cursor: pointer;
     }
+
+        .sudoku-cell:hover {
+            background-color: #f8f9fa;
+        }
 
         .sudoku-cell.thick-right {
             border-right: 3px solid black;
@@ -35,25 +43,108 @@
             border-bottom: 3px solid black;
         }
 
-        .sudoku-cell.highlight {
-            color: #0066cc;
-        }
+    /* Colors */
+    .color-initial {
+        color: black;
+    }
 
-    .nav-btn {
-        font-size: 1.5rem;
-        cursor: pointer;
-        background: none;
-        border: 1px solid #ccc;
-        padding: 0 10px;
+    .color-user {
+        color: #0066cc;
+    }
+
+    .color-auto {
+        color: #28a745;
+    }
+
+    /* Notes */
+    .notes-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        width: 100%;
+        height: 100%;
+        font-size: 10px;
+        color: grey;
         line-height: 1;
+        font-weight: normal;
+    }
+
+    .note-item {
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 30px;
     }
 
-        .nav-btn:hover {
+    /* Floating Picker */
+    #digitPicker {
+        position: absolute;
+        display: none;
+        grid-template-columns: repeat(3, 30px);
+        gap: 2px;
+        background: white;
+        border: 2px solid #333;
+        padding: 4px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        z-index: 1000;
+    }
+
+    .picker-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background: #f0f0f0;
+    }
+
+        .picker-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .picker-btn.clear-btn {
+            grid-column: span 3;
+        }
+
+    .legend-box {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 4px;
+    }
+
+    .legend-item {
+        margin-right: 15px;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .controls-row {
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 360px;
+    }
+
+    .nav-btn {
+        font-size: 1.1rem;
+        cursor: pointer;
+        background: none;
+        border: 1px solid #ccc;
+        padding: 0 15px;
+        height: 35px;
+    }
+
+        .nav-btn:hover:not(:disabled) {
             background-color: #f0f0f0;
+        }
+
+        .nav-btn:disabled {
+            color: #ccc;
+            cursor: not-allowed;
+            border-color: #eee;
         }
 </style>
 
@@ -66,87 +157,207 @@
 
 @if (Model.InitialBoard != null && Model.InitialBoard.Length > 0)
 {
-    <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem;">
-        <button id="prevBtn" class="nav-btn" title="Previous Step">&lt;</button>
-        <input type="range" id="stepSlider" min="0" max="@Model.Steps.Count" value="0" style="width: 300px;" />
-        <button id="nextBtn" class="nav-btn" title="Next Step">&gt;</button>
-    </div>
-    <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem;">
-        <div style="width: 180px; text-align: center; color: green; font-family: monospace; font-size: 1.3rem;">
-            @Model.LoadedFileName
-        </div>
-        <span id="stepLabel" style="font-family: monospace; font-size: 1.2rem;">Step: 0 / @Model.Steps.Count</span>
+    <div style="margin-bottom: 10px;">
+        <span class="legend-item"><span class="legend-box" style="background: black;"></span> Initial</span>
+        <span class="legend-item"><span class="legend-box" style="background: #0066cc;"></span> User</span>
+        <span class="legend-item"><span class="legend-box" style="background: #28a745;"></span> Solver</span>
+        <span class="legend-item" style="color: grey; font-size: 0.8rem;">1 2 3 Notes</span>
     </div>
 
+    <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem;">
+        <input type="range" id="stepSlider" min="0" max="0" value="0" style="width: 250px;" disabled />
+        <span id="stepLabel" style="font-family: monospace; font-size: 1.2rem;">Step: 0 / 0</span>
+    </div>
 
-    <div id="sudoku-grid">
+    <div class="controls-row">
+        <label style="cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: bold;">
+            <input type="checkbox" id="notesToggle" style="width: 18px; height: 18px;" />
+            Notes Mode
+        </label>
+        <button id="nextBtn" class="nav-btn" title="Calculate Next Step">Next Step &gt;</button>
+    </div>
+
+    <div style="width: 360px; text-align: center; color: red; font-family: monospace; font-size: 0.9rem; margin-bottom: 5px;">
+        @Model.LoadedFileName
+    </div>
+
+    <div id="sudoku-grid"></div>
+
+    <div id="digitPicker">
+        @for (int i = 1; i <= 9; i++)
+        {
+            <button class="picker-btn" onclick="applyDigit(@i)">@i</button>
+        }
+        <button class="picker-btn clear-btn" onclick="applyDigit(0)">Clear</button>
     </div>
 
     <script>
         const initialBoard = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.InitialBoard, jsonOptions));
-        const steps = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Steps, jsonOptions));
+
+        // State layers
+        let userBoard = Array.from({length: 9}, () => Array(9).fill(0));
+        let solverSteps = [];
+        let notesBoard = Array.from({length: 9}, () => Array.from({length: 9}, () => new Set()));
+        let isDeadEnd = false;
 
         const grid = document.getElementById('sudoku-grid');
+        const notesToggle = document.getElementById('notesToggle');
+        const nextBtn = document.getElementById('nextBtn');
         const slider = document.getElementById('stepSlider');
         const label = document.getElementById('stepLabel');
-        const prevBtn = document.getElementById('prevBtn');
-        const nextBtn = document.getElementById('nextBtn');
+        const picker = document.getElementById('digitPicker');
 
-        function renderBoard(stepIndexValue) {
-            const stepIndex = parseInt(stepIndexValue, 10);
-            label.innerText = `Step: ${stepIndex} / ${steps.length}`;
-            slider.value = stepIndex;
-            grid.innerHTML = '';
+        let activeCell = null;
 
-            let currentBoard = initialBoard.map(row => [...row]);
+        function renderBoard() {
+             grid.innerHTML = '';
+             let stepIndex = parseInt(slider.value, 10);
+             label.innerText = `Step: ${stepIndex} / ${solverSteps.length}`;
+             slider.disabled = solverSteps.length === 0;
 
-            for (let i = 0; i < stepIndex; i++) {
-                const step = steps[i];
-                if (!step) continue;
+             nextBtn.disabled = (stepIndex === solverSteps.length) && isDeadEnd;
 
-                const r = step.r !== undefined ? step.r : step.R;
-                const c = step.c !== undefined ? step.c : step.C;
-                const digit = step.digit !== undefined ? step.digit : step.Digit;
+             let currentBoard = initialBoard.map(row => [...row]);
+             let cellSource = initialBoard.map(row => row.map(val => val > 0 ? 1 : 0));
 
-                if (r >= 0 && r < 9 && c >= 0 && c < 9) {
-                    currentBoard[r][c] = digit;
-                }
-            }
+             for (let r = 0; r < 9; r++) {
+                 for (let c = 0; c < 9; c++) {
+                     if (userBoard[r][c] > 0) {
+                         currentBoard[r][c] = userBoard[r][c];
+                         cellSource[r][c] = 2;
+                     }
+                 }
+             }
 
-            for (let r = 0; r < 9; r++) {
-                for (let c = 0; c < 9; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'sudoku-cell';
+             for (let i = 0; i < stepIndex; i++) {
+                 const step = solverSteps[i];
+                 currentBoard[step.r][step.c] = step.digit;
+                 cellSource[step.r][step.c] = 3;
+             }
 
-                    if (c % 3 === 2) cell.classList.add('thick-right');
-                    if (r % 3 === 2) cell.classList.add('thick-bottom');
+             for (let r = 0; r < 9; r++) {
+                 for (let c = 0; c < 9; c++) {
+                     const cell = document.createElement('div');
+                     cell.className = 'sudoku-cell';
 
-                    const val = currentBoard[r][c];
-                    if (val > 0) {
-                        cell.innerText = val;
-                        if (initialBoard[r][c] === 0) {
-                            cell.classList.add('highlight');
-                        }
-                    }
+                     if (c % 3 === 2) cell.classList.add('thick-right');
+                     if (r % 3 === 2) cell.classList.add('thick-bottom');
 
-                    grid.appendChild(cell);
-                }
-            }
+                     const val = currentBoard[r][c];
+                     const source = cellSource[r][c];
+
+                     if (val > 0) {
+                         cell.innerText = val;
+                         if (source === 1) cell.classList.add('color-initial');
+                         if (source === 2) cell.classList.add('color-user');
+                         if (source === 3) cell.classList.add('color-auto');
+                     } else if (notesBoard[r][c].size > 0) {
+                         const notesContainer = document.createElement('div');
+                         notesContainer.className = 'notes-grid';
+                         for (let i = 1; i <= 9; i++) {
+                             const noteDiv = document.createElement('div');
+                             noteDiv.className = 'note-item';
+                             if (notesBoard[r][c].has(i)) noteDiv.innerText = i;
+                             notesContainer.appendChild(noteDiv);
+                         }
+                         cell.appendChild(notesContainer);
+                     }
+
+                     // Pass the current 'source' state to the picker
+                     cell.addEventListener('click', (e) => openPicker(r, c, source, e));
+                     grid.appendChild(cell);
+                 }
+             }
+
+             return currentBoard;
+         }
+
+         function openPicker(r, c, source, event) {
+             // Block editing if the cell is Initial (1) or Auto-Solved (3)
+             if (source === 1 || source === 3) return;
+
+             activeCell = { r, c };
+             picker.style.display = 'grid';
+             picker.style.left = `${event.pageX + 10}px`;
+             picker.style.top = `${event.pageY + 10}px`;
+         }
+
+        function closePicker() {
+            picker.style.display = 'none';
+            activeCell = null;
         }
 
-        function changeStep(delta) {
-            let currentStep = parseInt(slider.value, 10);
-            let newStep = currentStep + delta;
+        document.addEventListener('click', (e) => {
+            if (!picker.contains(e.target) && !e.target.closest('.sudoku-cell')) closePicker();
+        });
 
-            if (newStep >= 0 && newStep <= steps.length) {
-                renderBoard(newStep);
+        window.applyDigit = function(d) {
+            if (!activeCell) return;
+            const { r, c } = activeCell;
+
+            if (notesToggle.checked) {
+                if (d === 0) notesBoard[r][c].clear();
+                else {
+                    if (notesBoard[r][c].has(d)) notesBoard[r][c].delete(d);
+                    else notesBoard[r][c].add(d);
+                }
+            } else {
+                userBoard[r][c] = d;
+                notesBoard[r][c].clear();
+
+                // Reset solver timeline because the board reality changed
+                solverSteps = [];
+                slider.max = 0;
+                slider.value = 0;
+                isDeadEnd = false;
             }
-        }
 
-        slider.addEventListener('input', (e) => renderBoard(e.target.value));
-        prevBtn.addEventListener('click', () => changeStep(-1));
-        nextBtn.addEventListener('click', () => changeStep(1));
+            closePicker();
+            renderBoard();
+        };
 
-        renderBoard(0);
+        slider.addEventListener('input', () => renderBoard());
+
+        nextBtn.addEventListener('click', async () => {
+            let stepIndex = parseInt(slider.value, 10);
+
+            // If user previously dragged slider back, just step forward through known steps
+            if (stepIndex < solverSteps.length) {
+                slider.value = stepIndex + 1;
+                renderBoard();
+                return;
+            }
+
+            nextBtn.disabled = true;
+            nextBtn.innerText = 'Wait...';
+
+            const stateForApi = renderBoard(); // Computes and returns current board
+
+            try {
+                const response = await fetch('?handler=NextStep', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(stateForApi)
+                });
+
+                const step = await response.json();
+
+                if (step && step.r !== undefined) {
+                    solverSteps.push(step);
+                    slider.max = solverSteps.length;
+                    slider.value = solverSteps.length;
+                    nextBtn.disabled = false;
+                } else {
+                    isDeadEnd = true;
+                }
+            } catch (err) {
+                console.error("Solver error:", err);
+            }
+
+            nextBtn.innerText = 'Next Step >';
+            renderBoard();
+        });
+
+        renderBoard();
     </script>
 }
