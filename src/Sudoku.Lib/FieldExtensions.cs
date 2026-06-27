@@ -31,4 +31,19 @@ public static class FieldExtensions
             return new Field(cells);
         }
     }
+
+    extension(int index)
+    {
+        public (int row, int col)[] GetRowCoordinates() 
+            => Enumerable.Range(0, Field.Size).Select(col => (index, col)).ToArray();
+
+        public (int row, int col)[] GetColCoordinates() 
+            => Enumerable.Range(0, Field.Size).Select(row => (row, index)).ToArray();
+
+        public (int row, int col)[] GetSquareCoordinates()
+            => Enumerable.Range(0, Field.Size)
+                .SelectMany(row => Enumerable.Range(0, Field.Size).Select(col => (row, col)))
+                .Where(coord => coord.row / 3 * 3 + coord.col / 3 == index)
+                .ToArray();
+    }
 }

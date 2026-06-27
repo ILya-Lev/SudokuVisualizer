@@ -25,9 +25,7 @@ public class Solver
     {
         for (int row = 0; row < Field.Size; row++)
         {
-            var coordinates = Enumerable.Range(0, Field.Size).Select(col => (row, col)).ToArray();
-
-            var updatedCell = PutUniqueDigitByCoordinates(field, coordinates);
+            var updatedCell = PutUniqueDigitByCoordinates(field, row.GetRowCoordinates());
             if (updatedCell is not null)
                 return updatedCell;
         }
@@ -39,9 +37,7 @@ public class Solver
     {
         for (int col = 0; col < Field.Size; col++)
         {
-            var coordinates = Enumerable.Range(0, Field.Size).Select(row => (row, col)).ToArray();
-
-            var updatedCell = PutUniqueDigitByCoordinates(field, coordinates);
+            var updatedCell = PutUniqueDigitByCoordinates(field, col.GetColCoordinates());
             if (updatedCell is not null)
                 return updatedCell;
         }
@@ -53,12 +49,7 @@ public class Solver
     {
         for (int square = 0; square < Field.Size; square++)
         {
-            var coordinates = Enumerable.Range(0, Field.Size)
-                .SelectMany(row => Enumerable.Range(0, Field.Size).Select(col => (row, col)))
-                .Where(coord => coord.row / 3 * 3 + coord.col / 3 == square)
-                .ToArray();
-
-            var updatedCell = PutUniqueDigitByCoordinates(field, coordinates);
+            var updatedCell = PutUniqueDigitByCoordinates(field, square.GetSquareCoordinates());
             if (updatedCell is not null)
                 return updatedCell;
         }
