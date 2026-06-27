@@ -1,0 +1,81 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Sudoku Solver";
+    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+}
+
+<div style="margin-bottom: 2rem;">
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="puzzleFile" accept=".txt" required />
+        <button type="submit">Load and Solve</button>
+    </form>
+</div>
+
+@if (Model.InitialBoard.Length > 0)
+{
+    <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem;">
+        <input type="range" id="stepSlider" min="0" max="@Model.Steps.Count" value="0" style="width: 300px;" />
+        <span id="stepLabel" style="font-family: monospace; font-size: 1.2rem;">Step: 0 / @Model.Steps.Count</span>
+    </div>
+
+    <div id="sudoku-grid" style="display: grid; grid-template-columns: repeat(9, 40px); gap: 1px; background: #333; border: 3px solid #333; width: max-content;">
+    </div>
+
+    <script>
+        const initialBoard = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.InitialBoard, jsonOptions));
+        const steps = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Steps, jsonOptions));
+
+        const grid = document.getElementById('sudoku-grid');
+        const slider = document.getElementById('stepSlider');
+        const label = document.getElementById('stepLabel');
+
+        function renderBoard(stepIndex) {
+            label.innerText = `Step: ${stepIndex} / ${steps.length}`;
+            grid.innerHTML = '';
+
+            // Deep copy the initial board
+            let currentBoard = initialBoard.map(row => [...row]);
+
+            // Apply steps up to the current slider value
+            for (let i = 0; i < stepIndex; i++) {
+                const step = steps[i];
+                // Map the 1-based Cell coordinates back to 0-based JS array indices
+                currentBoard[step.r - 1][step.c - 1] = step.digit;
+            }
+
+            // Draw the grid
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const cell = document.createElement('div');
+                    cell.style.width = '40px';
+                    cell.style.height = '40px';
+                    cell.style.background = 'white';
+                    cell.style.display = 'flex';
+                    cell.style.alignItems = 'center';
+                    cell.style.justifyContent = 'center';
+                    cell.style.fontSize = '20px';
+                    cell.style.fontWeight = 'bold';
+
+                    // Thicker borders for the 3x3 sub-squares
+                    if (c % 3 === 2 && c !== 8) cell.style.marginRight = '2px';
+                    if (r % 3 === 2 && r !== 8) cell.style.marginBottom = '2px';
+
+                    const val = currentBoard[r][c];
+                    if (val > 0) {
+                        cell.innerText = val;
+                        // Highlight dynamically added digits in blue
+                        if (initialBoard[r][c] === 0) {
+                            cell.style.color = '#0066cc';
+                        }
+                    }
+
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        slider.addEventListener('input', (e) => renderBoard(e.target.value));
+        renderBoard(0); // Initial draw
+    </script>
+}
