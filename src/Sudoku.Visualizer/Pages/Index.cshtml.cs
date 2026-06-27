@@ -78,6 +78,32 @@ public class IndexModel : PageModel
         return new JsonResult(null); // Solved or un-solvable state
     }
 
+    public IActionResult OnPostValidate([FromBody] int[][]? currentBoard)
+    {
+        if (currentBoard is not { Length: Size })
+            return new JsonResult(false);
+
+        List<Cell[]> cells = [];
+        for (int r = 0; r < Size; r++)
+        {
+            var row = new Cell[Size];
+            for (int c = 0; c < Size; c++)
+            {
+                int digit = currentBoard[r][c];
+                row[c] = digit is > 0 and <= Size ? new Cell(r, c, digit) : new Cell(r, c);
+            }
+            cells.Add(row);
+        }
+
+        var field = new Field(cells);
+        var requiredStepsNumber = field.Cells.Sum(row => row.Count(c => c.IsEmpty));
+        var steps = Solver.Solve(field).ToList();
+
+        // If the solver yields steps, or the board is already completely solved, it is valid
+        bool isValid = steps.Count == requiredStepsNumber || field.IsSolved();
+        return new JsonResult(isValid);
+    }
+
     private static async Task<(Field?, string?)> GetField(IFormFile puzzleFile)
     {
         try
