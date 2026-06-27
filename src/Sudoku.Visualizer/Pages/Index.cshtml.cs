@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices.JavaScript;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Sudoku.Lib;
@@ -13,6 +11,7 @@ public class IndexModel : PageModel
     private const int Size = Field.Size;
     public int[][] InitialBoard { get; set; } = [];
     public List<StepDto> Steps { get; set; } = [];
+    public string? LoadedFileName { get; set; }
 
     public void OnGet() { }
 
@@ -25,6 +24,8 @@ public class IndexModel : PageModel
         if (readingError is not null)
             return BadRequest();
 
+        LoadedFileName = puzzleFile.FileName;
+        
         // Capture initial state for the UI
         InitialBoard = new int[Size][];
         for (int i = 0; i < Size; i++)

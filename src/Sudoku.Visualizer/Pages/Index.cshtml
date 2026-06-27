@@ -6,7 +6,6 @@
 }
 
 <style>
-    /* Use strict borders instead of margins to prevent CSS Grid from collapsing */
     #sudoku-grid {
         display: grid;
         grid-template-columns: repeat(9, 40px);
@@ -25,7 +24,7 @@
         font-weight: bold;
         border-right: 1px solid #ccc;
         border-bottom: 1px solid #ccc;
-        box-sizing: border-box; /* Crucial for keeping exactly 40x40 size */
+        box-sizing: border-box;
     }
 
         .sudoku-cell.thick-right {
@@ -39,6 +38,23 @@
         .sudoku-cell.highlight {
             color: #0066cc;
         }
+
+    .nav-btn {
+        font-size: 1.5rem;
+        cursor: pointer;
+        background: none;
+        border: 1px solid #ccc;
+        padding: 0 10px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 30px;
+    }
+
+        .nav-btn:hover {
+            background-color: #f0f0f0;
+        }
 </style>
 
 <div style="margin-bottom: 2rem;">
@@ -50,10 +66,18 @@
 
 @if (Model.InitialBoard != null && Model.InitialBoard.Length > 0)
 {
-    <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem;">
+    <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem;">
+        <button id="prevBtn" class="nav-btn" title="Previous Step">&lt;</button>
         <input type="range" id="stepSlider" min="0" max="@Model.Steps.Count" value="0" style="width: 300px;" />
+        <button id="nextBtn" class="nav-btn" title="Next Step">&gt;</button>
+    </div>
+    <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem;">
+        <div style="width: 180px; text-align: center; color: green; font-family: monospace; font-size: 1.3rem;">
+            @Model.LoadedFileName
+        </div>
         <span id="stepLabel" style="font-family: monospace; font-size: 1.2rem;">Step: 0 / @Model.Steps.Count</span>
     </div>
+
 
     <div id="sudoku-grid">
     </div>
@@ -65,11 +89,13 @@
         const grid = document.getElementById('sudoku-grid');
         const slider = document.getElementById('stepSlider');
         const label = document.getElementById('stepLabel');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
 
         function renderBoard(stepIndexValue) {
-            // Guarantee base 10 integer evaluation to avoid JS string coercion array crashes
             const stepIndex = parseInt(stepIndexValue, 10);
             label.innerText = `Step: ${stepIndex} / ${steps.length}`;
+            slider.value = stepIndex;
             grid.innerHTML = '';
 
             let currentBoard = initialBoard.map(row => [...row]);
@@ -78,7 +104,6 @@
                 const step = steps[i];
                 if (!step) continue;
 
-                // Safely extract coordinates supporting both PascalCase and camelCase JSON
                 const r = step.r !== undefined ? step.r : step.R;
                 const c = step.c !== undefined ? step.c : step.C;
                 const digit = step.digit !== undefined ? step.digit : step.Digit;
@@ -93,7 +118,6 @@
                     const cell = document.createElement('div');
                     cell.className = 'sudoku-cell';
 
-                    // Apply thick vertical and horizontal lines every 3 cells
                     if (c % 3 === 2) cell.classList.add('thick-right');
                     if (r % 3 === 2) cell.classList.add('thick-bottom');
 
@@ -110,7 +134,19 @@
             }
         }
 
+        function changeStep(delta) {
+            let currentStep = parseInt(slider.value, 10);
+            let newStep = currentStep + delta;
+
+            if (newStep >= 0 && newStep <= steps.length) {
+                renderBoard(newStep);
+            }
+        }
+
         slider.addEventListener('input', (e) => renderBoard(e.target.value));
+        prevBtn.addEventListener('click', () => changeStep(-1));
+        nextBtn.addEventListener('click', () => changeStep(1));
+
         renderBoard(0);
     </script>
 }

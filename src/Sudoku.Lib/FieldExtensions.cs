@@ -10,8 +10,7 @@ public static class FieldExtensions
             if (row.Any(c => c.IsEmpty))
                 return false;
 
-            return row.Length == SolvedRow.Count
-                   && row.Count(c => SolvedRow.Contains(c.Digit)) == SolvedRow.Count;
+            return row.Select(c => c.Digit).Distinct().Count() == Field.Size;
         });
 
         public Field Clone()
@@ -23,7 +22,7 @@ public static class FieldExtensions
                 var clonedRow = new Cell[Field.Size];
                 for (int i = 0; i < Field.Size; i++)
                 {
-                    clonedRow[i] = row[i] with { };
+                    clonedRow[i] = row[i].Clone();
                 }
                 cells.Add(clonedRow);
             }

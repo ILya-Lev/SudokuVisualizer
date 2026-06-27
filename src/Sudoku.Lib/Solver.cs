@@ -1,78 +1,78 @@
-﻿namespace Sudoku.Lib;
+﻿using Sudoku.Lib.Traversers;
+
+namespace Sudoku.Lib;
 
 public class Solver
 {
     /// <summary>
-    /// returns a sequence of cells - step by step how the field was automatically solved
+    /// Returns a sequence of cells - step by step how the field was automatically solved
     /// </summary>
     public static IEnumerable<Cell> Solve(Field field)
     {
-        var current = field.Clone();
-        while (!current.IsSolved())
+        var stack = new Stack<(Field State, List<Cell> Path)>();
+        stack.Push((field.Clone(), []));
+
+        while (stack.TryPop(out var current))
         {
-            var updatedCell = FindUpdatedCellByUniqueOccupation(current);
-            if (updatedCell is not null)
-                yield return updatedCell;
-        }
-    }
+            var (pathSegment, branching) = GetSolutionPath(current.State);
 
-    private static Cell? FindUpdatedCellByUniqueOccupation(Field field) =>
-        PutUniqueDigitInRow(field)
-        ?? PutUniqueDigitInColumn(field)
-        ?? PutUniqueDigitInSquare(field);
+            var fullPath = current.Path.Concat(pathSegment).ToList();
+            if (current.State.IsSolved())
+                return fullPath;
 
-    private static Cell? PutUniqueDigitInRow(Field field)
-    {
-        for (int row = 0; row < Field.Size; row++)
-        {
-            var updatedCell = PutUniqueDigitByCoordinates(field, row.GetRowCoordinates());
-            if (updatedCell is not null)
-                return updatedCell;
-        }
+            if (branching is null)
+                continue; // Contradiction (dead end branch)
 
-        return null;
-    }
-
-    private static Cell? PutUniqueDigitInColumn(Field field)
-    {
-        for (int col = 0; col < Field.Size; col++)
-        {
-            var updatedCell = PutUniqueDigitByCoordinates(field, col.GetColCoordinates());
-            if (updatedCell is not null)
-                return updatedCell;
-        }
-
-        return null;
-    }
-
-    private static Cell? PutUniqueDigitInSquare(Field field)
-    {
-        for (int square = 0; square < Field.Size; square++)
-        {
-            var updatedCell = PutUniqueDigitByCoordinates(field, square.GetSquareCoordinates());
-            if (updatedCell is not null)
-                return updatedCell;
-        }
-
-        return null;
-    }
-
-    private static Cell? PutUniqueDigitByCoordinates(Field field, (int row, int col)[] coordinates)
-    {
-        var cells = coordinates.Select(coord => field.Cells[coord.row][coord.col]).ToArray();
-        var occupiedDigits = cells.Where(c => !c.IsEmpty).Select(c => c.Digit).ToHashSet();
-
-        foreach (var cell in cells.Where(c => c.IsEmpty))
-        {
-            cell.PossibleDigits.RemoveAll(occupiedDigits.Contains);
-            if (cell.PossibleDigits.Count == 1)
+            foreach (var digit in branching.PossibleDigits)
             {
-                var updatedCell = new Cell(cell.R, cell.C, cell.PossibleDigits.Single());
-                field.Cells[cell.R][cell.C] = updatedCell;
-                return updatedCell;
+                var nextState = current.State.Clone();
+                var decision = new Cell(branching.R, branching.C, digit);
+
+                nextState.Cells[decision.R][decision.C] = decision;
+
+                stack.Push((nextState, [.. fullPath, decision]));
             }
         }
 
-        return null;
+        return []; // Unsolvable
+    }
+
+    private static (List<Cell> Segment, Cell? Branching) GetSolutionPath(Field field)
+    {
+        var uniqueDigitTraverser = new UniqueDigitTraverser();
+        var singleDigitTraverser = new SingleDigitTraverser();
+        List<Cell> solutionPathSegment = [];
+
+        while (!field.IsSolved())
+        {
+            var updatedCell = uniqueDigitTraverser.Traverse(field)
+                              ?? singleDigitTraverser.Traverse(field);
+
+            if (updatedCell is not null)
+            {
+                solutionPathSegment.Add(updatedCell);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if (field.IsSolved())
+            return (solutionPathSegment, null);
+
+        var emptyCells = field.Cells
+            .SelectMany(row => row)
+            .Where(c => c.IsEmpty)
+            .ToList();
+
+        // Contradiction: No empty cells left (but not solved), or an empty cell has no valid digits
+        if (emptyCells.Count == 0 || emptyCells.Any(c => c.PossibleDigits.Count == 0))
+            return (solutionPathSegment, null);
+
+        // Branch on the cell with the fewest possible digits (Minimum Remaining Values heuristic)
+        var branching = emptyCells.MinBy(c => c.PossibleDigits.Count);
+
+        return (solutionPathSegment, branching);
     }
 }

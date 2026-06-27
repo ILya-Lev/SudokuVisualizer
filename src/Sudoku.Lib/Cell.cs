@@ -1,6 +1,6 @@
 ﻿namespace Sudoku.Lib;
 
-public record Cell
+public class Cell : IComparable<Cell>
 {
     public Cell(int r, int c, int digit)
     {
@@ -21,13 +21,13 @@ public record Cell
         PossibleDigits = Enumerable.Range(1, Field.Size).ToList();
     }
 
-    protected Cell With()
+    public Cell Clone()
     {
         return !IsEmpty
             ? new(R, C, Digit)
             : new(R, C)
             {
-                PossibleDigits = this.PossibleDigits.ToList()
+                PossibleDigits = PossibleDigits.ToList()
             };
     }
 
@@ -36,4 +36,6 @@ public record Cell
     public int Digit { get; init; }
     public List<int> PossibleDigits { get; init; } = [];
     public bool IsEmpty => Digit == 0;
+
+    public int CompareTo(Cell? other) => PossibleDigits.Count.CompareTo(other?.PossibleDigits.Count ?? 0);
 }
