@@ -173,12 +173,13 @@
         <span id="stepLabel" style="font-family: monospace; font-size: 1.2rem;">Step: 0 / 0</span>
     </div>
 
-    <div class="controls-row">
+    <div class="controls-row" style="width: max-content; gap: 15px;">
         <label style="cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: bold;">
             <input type="checkbox" id="notesToggle" style="width: 18px; height: 18px;" />
             Notes Mode
         </label>
         <button id="nextBtn" class="nav-btn" title="Calculate Next Step">Next Step &gt;</button>
+        <button id="toEndBtn" class="nav-btn" title="Fast forward to solution">To the End!</button>
     </div>
 
     <div style="width: 360px; text-align: center; color: red; font-family: monospace; font-size: 0.9rem; margin-bottom: 5px;">
@@ -211,6 +212,7 @@
         const slider = document.getElementById('stepSlider');
         const label = document.getElementById('stepLabel');
         const picker = document.getElementById('digitPicker');
+        const toEndBtn = document.getElementById('toEndBtn');
 
         let activeCell = null;
 
@@ -220,7 +222,9 @@
             label.innerText = `Step: ${stepIndex} / ${solverSteps.length}`;
             slider.disabled = solverSteps.length === 0;
 
-            nextBtn.disabled = (stepIndex === solverSteps.length) && isDeadEnd;
+            const isAtEnd = stepIndex === solverSteps.length;
+            nextBtn.disabled = isAtEnd && isDeadEnd;
+            toEndBtn.disabled = isAtEnd && isDeadEnd;
 
             let currentBoard = initialBoard.map(row => [...row]);
             let cellSource = initialBoard.map(row => row.map(val => val > 0 ? 1 : 0));
@@ -383,6 +387,48 @@
             }
 
             nextBtn.innerText = 'Next Step >';
+            renderBoard();
+        });
+
+        toEndBtn.addEventListener('click', async () => {
+            let stepIndex = parseInt(slider.value, 10);
+
+            // If user previously dragged slider back, instantly jump to the end of known steps
+            if (stepIndex < solverSteps.length) {
+                slider.value = solverSteps.length;
+                renderBoard();
+                return;
+            }
+
+            toEndBtn.disabled = true;
+            nextBtn.disabled = true;
+            toEndBtn.innerText = 'Wait...';
+
+            const stateForApi = renderBoard();
+
+            try {
+                const response = await fetch('?handler=SolveAll', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(stateForApi)
+                });
+
+                const newSteps = await response.json();
+
+                if (newSteps && newSteps.length > 0) {
+                    solverSteps.push(...newSteps);
+                    slider.max = solverSteps.length;
+                    slider.value = solverSteps.length;
+                }
+
+                // Once we ask for all steps, there are no more subsequent logical moves
+                isDeadEnd = true;
+
+            } catch (err) {
+                console.error("Solver error:", err);
+            }
+
+            toEndBtn.innerText = 'To the End!';
             renderBoard();
         });
 

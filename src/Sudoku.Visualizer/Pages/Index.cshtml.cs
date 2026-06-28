@@ -28,7 +28,6 @@ public class IndexModel : PageModel
 
         LoadedFileName = puzzleFile.FileName;
         
-        // Capture initial state for the UI
         InitialBoard = new int[Size][];
         for (int i = 0; i < Size; i++)
         {
@@ -39,69 +38,10 @@ public class IndexModel : PageModel
             }
         }
 
-        // Run the solver and capture steps
         var steps = Solver.Solve(field!).ToList();
         Steps = steps.Select(c => new StepDto(c.R, c.C, c.Digit)).ToList();
 
         return Page();
-    }
-
-    // This handler receives the CURRENT state of the board from JavaScript
-    public IActionResult OnPostNextStep([FromBody] int[][]? currentBoard)
-    {
-        if (currentBoard is not { Length: Size })
-            return new JsonResult(null);
-
-        List<Cell[]> cells = [];
-        for (int r = 0; r < Size; r++)
-        {
-            var row = new Cell[Size];
-            for (int c = 0; c < Size; c++)
-            {
-                int digit = currentBoard[r][c];
-                row[c] = digit is > 0 and <= Size
-                    ? new Cell(r, c, digit)
-                    : new Cell(r, c);
-            }
-            cells.Add(row);
-        }
-
-        var field = new Field(cells);
-        var steps = Solver.Solve(field).ToList();
-
-        if (steps.Any())
-        {
-            var nextStep = steps.First();
-            return new JsonResult(new { r = nextStep.R, c = nextStep.C, digit = nextStep.Digit });
-        }
-
-        return new JsonResult(null); // Solved or un-solvable state
-    }
-
-    public IActionResult OnPostValidate([FromBody] int[][]? currentBoard)
-    {
-        if (currentBoard is not { Length: Size })
-            return new JsonResult(false);
-
-        List<Cell[]> cells = [];
-        for (int r = 0; r < Size; r++)
-        {
-            var row = new Cell[Size];
-            for (int c = 0; c < Size; c++)
-            {
-                int digit = currentBoard[r][c];
-                row[c] = digit is > 0 and <= Size ? new Cell(r, c, digit) : new Cell(r, c);
-            }
-            cells.Add(row);
-        }
-
-        var field = new Field(cells);
-        var requiredStepsNumber = field.Cells.Sum(row => row.Count(c => c.IsEmpty));
-        var steps = Solver.Solve(field).ToList();
-
-        // If the solver yields steps, or the board is already completely solved, it is valid
-        bool isValid = steps.Count == requiredStepsNumber || field.IsSolved();
-        return new JsonResult(isValid);
     }
 
     private static async Task<(Field?, string?)> GetField(IFormFile puzzleFile)
@@ -122,5 +62,64 @@ public class IndexModel : PageModel
     {
         using var reader = new StreamReader(puzzleFile.OpenReadStream());
         return await reader.ReadToEndAsync();
+    }
+
+    public IActionResult OnPostNextStep([FromBody] int[][]? currentBoard)
+    {
+        if (currentBoard is not { Length: Size })
+            return new JsonResult(null);
+
+        var field = BoardToField(currentBoard);
+        var steps = Solver.Solve(field).ToList();
+
+        if (steps.Any())
+        {
+            var nextStep = steps.First();
+            return new JsonResult(new { r = nextStep.R, c = nextStep.C, digit = nextStep.Digit });
+        }
+
+        return new JsonResult(null); // Solved or un-solvable state
+    }
+
+    public IActionResult OnPostValidate([FromBody] int[][]? currentBoard)
+    {
+        if (currentBoard is not { Length: Size })
+            return new JsonResult(false);
+
+        var field = BoardToField(currentBoard);
+        var requiredStepsNumber = field.Cells.Sum(row => row.Count(c => c.IsEmpty));
+        var steps = Solver.Solve(field).ToList();
+
+        // If the solver yields steps, or the board is already completely solved, it is valid
+        bool isValid = steps.Count == requiredStepsNumber || field.IsSolved();
+        return new JsonResult(isValid);
+    }
+
+    public IActionResult OnPostSolveAll([FromBody] int[][] currentBoard)
+    {
+        if (currentBoard is not { Length: Size })
+            return new JsonResult(Array.Empty<object>());
+
+        var field = BoardToField(currentBoard);
+        var steps = Solver.Solve(field).ToList();
+        var stepsDto = steps.Select(c => new StepDto(c.R, c.C, c.Digit)).ToList();
+        return new JsonResult(stepsDto);
+    }
+
+    private static Field BoardToField(int[][] currentBoard)
+    {
+        List<Cell[]> cells = [];
+        for (int r = 0; r < Size; r++)
+        {
+            var row = new Cell[Size];
+            for (int c = 0; c < Size; c++)
+            {
+                int digit = currentBoard[r][c];
+                row[c] = digit is > 0 and <= Size ? new Cell(r, c, digit) : new Cell(r, c);
+            }
+            cells.Add(row);
+        }
+
+        return new Field(cells);
     }
 }
